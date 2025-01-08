@@ -1,0 +1,16 @@
+[tool.black]
+line-length = 100
+target-version = ['py310']  # Укажите вашу версию Python
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+line_length = 100
+#known_third_party = ["fastapi", "sqlalchemy"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+disable_error_code = ["no-untyped-def", "misc"]
+strict = true
+plugins = ["sqlalchemy.ext.mypy.plugin"]

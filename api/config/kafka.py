@@ -1,0 +1,5 @@
+import os
+
+KAFKA_URL = os.getenv("KAFKA_URL")
+PARTITION_COUNT = 5
+REPLICATION_FACTOR = 1

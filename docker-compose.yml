@@ -1,0 +1,157 @@
+version: '3.8'
+services:
+  web:
+    build:
+      context: web
+      target: ${APP_ENV:-production}
+    environment:
+      APP_ENV: ${APP_ENV}
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/dist
+    depends_on:
+      - api
+    restart: always
+    networks:
+      - rag_net
+  nginx:
+    build:
+      context: deploy
+      dockerfile: nginx.Dockerfile
+    ports:
+      - "${API_PORT}:80"
+    command: /bin/bash -c "nginx -g 'daemon off;'"
+    depends_on:
+      - api
+      - web
+      - supertokens
+    deploy:
+      replicas: 1
+    networks:
+      - rag_net
+  api:
+    build:
+      context: api
+    environment:
+      MODE: "api"
+      APP_ENV: ${APP_ENV}
+      KAFKA_URL: "kafka:29092"
+    depends_on:
+      - db
+      - kafka
+      - elasticsearch
+    volumes:
+      - ./api:/app
+      - /app/venv
+    entrypoint: [ "./entrypoint.sh" ]
+    restart: unless-stopped
+    networks:
+      - rag_net
+  consumer:
+    build:
+      context: api
+    environment:
+      MODE: "consumer"
+      APP_ENV: ${APP_ENV}
+      KAFKA_URL: ${KAFKA_URL}
+    depends_on:
+      - db
+      - kafka
+      - elasticsearch
+    volumes:
+      - ./api:/app
+      - /app/venv
+    entrypoint: [ "./entrypoint.sh" ]
+    restart: unless-stopped
+    networks:
+      - rag_net
+  db:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - rag_net
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    restart: always
+    networks:
+      - rag_net
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      zookeeper:
+        condition: service_started
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_HEAP_OPTS=-Xms256m -Xmx256m
+      #- KAFKA_MESSAGE_MAX_BYTES=2000000000 # Adjusted value for larger message size
+      #- KAFKA_REPLICA_FETCH_MAX_BYTES=2000000000 # Adjusting the maximum size of the message a replica can receive
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:29092" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    restart: always
+    networks:
+      - rag_net
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # Отключение X-Pack Security
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g" # Установка начального и максимального размера кучи JVM в 2 ГБ
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: always
+    networks:
+      - rag_net
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:9.3.0
+    depends_on:
+      - db
+    environment:
+      POSTGRESQL_CONNECTION_URI: "${SUPERTOKENS_DB_CONNECTION}"
+    networks:
+      - rag_net
+    restart: unless-stopped
+    healthcheck:
+      test: >
+        bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  elasticsearch_data:
+
+networks:
+  rag_net:
+    name: ${NETWORK_NAME}
+    driver: "bridge"

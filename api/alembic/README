@@ -1,0 +1,13 @@
+Generic single-database configuration.
+
+# create migration
+alembic revision -m "create account table"
+
+# run migration
+alembic upgrade head
+
+# revert migration
+alembic downgrade -1
+
+# revert to base
+alembic downgrade base
