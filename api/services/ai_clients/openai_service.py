@@ -38,14 +38,14 @@ class OpenAIClient(IGenerator, IEmbedder):
     async def text_to_vector(self, text: str) -> Tuple[List[float], UsageData]:
         response = await self.client.embeddings.create(
             input=text,
-            model="text-embedding-ada-002",  # Или другая модель по вашему выбору
+            model="text-embedding-3-small",  # Или другая модель по вашему выбору
         )
         embedding = response.data[0].embedding
         usage = response.usage
         return embedding, UsageData(
             input_tokens=usage.prompt_tokens,
             output_tokens=usage.total_tokens - usage.prompt_tokens,
-            model_name="text-embedding-ada-002",
+            model_name="text-embedding-3-small",
         )
 
     def num_tokens_from_string(self, string: str, model: str) -> int:

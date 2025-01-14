@@ -347,7 +347,10 @@ async def delete_document(
 
     # Удаление параграфов из Elasticsearch
     for paragraph in paragraphs:
-        svc.delete_paragraph(paragraph.id)
+        try:
+            svc.delete_paragraph(paragraph.id)
+        except Exception as e:
+            pass
 
     # Удаление записей в таблице paragraph_question
     await db.execute(
