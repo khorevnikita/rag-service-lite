@@ -54,7 +54,7 @@ services:
     environment:
       MODE: "consumer"
       APP_ENV: ${APP_ENV}
-      KAFKA_URL: ${KAFKA_URL}
+      KAFKA_URL: "kafka:29092"
     depends_on:
       - db
       - kafka
