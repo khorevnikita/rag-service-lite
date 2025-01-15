@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, List, Optional
 
 from sqlalchemy import JSON, Column, DateTime
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy import ForeignKey, Integer, String, Text, insert
 from sqlalchemy.sql import functions as func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,11 @@ from models.question_file import QuestionFile
 
 class ModeEnum(Enum):
     CONTEXT = "context"
+
+
+class AnswerFormat(Enum):
+    AUDIO = "audio"
+    TEXT = "text"
 
 
 class Question(ModelBase):
@@ -37,6 +42,9 @@ class Question(ModelBase):
     reacted_at: Optional[datetime] = Column(DateTime, nullable=True)
     available_tools: Optional[Any] = Column(JSON, default=False, nullable=True)
     called_tools: Optional[Any] = Column(JSON, default=False, nullable=True)
+    answer_format: Optional[AnswerFormat] = Column(ENUM('text', 'audio', name='answerformat'), default=False,
+                                                   nullable=True)
+    audio_file: Optional[str] = Column(String, nullable=True)
     model = relationship("Model", back_populates="questions")
     account = relationship("Account", back_populates="questions")
     conversation = relationship("Conversation", back_populates="questions")

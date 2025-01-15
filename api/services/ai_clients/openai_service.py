@@ -2,7 +2,8 @@ import io
 import logging
 import os
 from typing import Any, Iterable, List, Literal, Optional, Tuple
-
+import base64
+import uuid
 import requests
 import tiktoken
 from openai import AsyncClient, OpenAI
@@ -18,6 +19,9 @@ from config import ai
 from models.settings import get_generative_model, get_openai_key, get_temperature
 from services.ai_clients.interfaces import AIMessage, IEmbedder, IGenerator, UsageData
 from validators.question_requests import FunctionDefinition
+
+from models.question import AnswerFormat
+from services.s3 import upload
 
 SYSTEM_ROLE: Literal['system'] = 'system'
 USER_ROLE: Literal['user'] = 'user'
@@ -216,9 +220,9 @@ class OpenAIClient(IGenerator, IEmbedder):
         ]
 
     def create_message_stream(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
+            self,
+            system_context: str,
+            messages: List[AIMessage],
     ) -> Iterable[Tuple[str, UsageData]]:
 
         input_tokens = self.number_tokens_from_messages(messages, self.general_model)
@@ -245,20 +249,28 @@ class OpenAIClient(IGenerator, IEmbedder):
                 yield "", usage
 
     async def create_message(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
-        tools: Optional[List[FunctionDefinition]],
-    ) -> Tuple[str, List[dict[str, str]], UsageData]:
+            self,
+            system_context: str,
+            messages: List[AIMessage],
+            tools: Optional[List[FunctionDefinition]],
+            answer_format: str,
+    ) -> Tuple[str, Optional[str], List[dict[str, str]], UsageData]:
+        modalities: List[Literal["text", "audio"]] = ["text"]
+        if answer_format == AnswerFormat.AUDIO.value:
+            modalities.append("audio")
+            self.general_model = "gpt-4o-audio-preview"
 
         completion = await self.client.chat.completions.create(
             temperature=self.temperature,
             model=self.general_model,
             messages=parse_ai_messages_to_openai(system_context, messages),
             tools=self.set_tools(tools),
+            modalities=modalities,
+            audio={"voice": "alloy", "format": "wav"},
         )
 
-        answer = completion.choices[0].message
+        best_completion = completion.choices[0]
+        answer = best_completion.message
         usage = completion.usage
 
         called_tools = []
@@ -267,9 +279,22 @@ class OpenAIClient(IGenerator, IEmbedder):
                 {"function_name": t.function.name, "arguments": t.function.arguments}
                 for t in answer.tool_calls
             ]
+        answer_content = answer.content or ""
+        remote_audio_path = None
+        if answer_format == AnswerFormat.AUDIO.value:
+            wav_bytes = base64.b64decode(best_completion.message.audio.data)
+            answer_content = best_completion.message.audio.transcript
+            random_filename = f"{uuid.uuid4().hex}.wav"
+            local_path = f"storage/{random_filename}"
+            with open(local_path, "wb") as f:
+                f.write(wav_bytes)
 
+            remote_audio_path = f"audio_answers/{random_filename}"
+            upload(local_path, remote_audio_path)
+            os.remove(local_path)
         return (
-            answer.content or "",
+            answer_content,
+            remote_audio_path,
             called_tools,
             UsageData(
                 input_tokens=usage.prompt_tokens if usage else 0,
@@ -291,7 +316,7 @@ class OpenAIClient(IGenerator, IEmbedder):
 
 
 def parse_ai_messages_to_openai(
-    ctx: str, messages: List[AIMessage]
+        ctx: str, messages: List[AIMessage]
 ) -> List[ChatCompletionMessageParam]:
     system_message: ChatCompletionSystemMessageParam = {"role": SYSTEM_ROLE, "content": ctx}
     ai_messages: List[ChatCompletionMessageParam] = []

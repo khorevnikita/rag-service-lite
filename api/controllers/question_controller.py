@@ -20,6 +20,7 @@ async def create_question_record(
         account_id=account.id,
         conversation_id=conversation.id,
         available_tools=[i.to_dict() for i in request.tools] if request.tools else None,
+        answer_format=request.answer_format.value,
     )
     db.add(question)
     await db.commit()

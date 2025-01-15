@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from models.question import AnswerFormat
+
 
 # Определите модель для элемента файла.
 class FileItem(BaseModel):
@@ -70,6 +72,7 @@ class CreateQuestionRequest(BaseModel):
     stream: bool = False
     files: Optional[List[FileItem]] = None
     tools: Optional[List[FunctionDefinition]] = None
+    answer_format: Optional[AnswerFormat] = AnswerFormat.TEXT
 
     @model_validator(mode="after")
     def check_text_media_or_files(self) -> "CreateQuestionRequest":
