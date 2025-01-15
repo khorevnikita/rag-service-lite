@@ -7,6 +7,7 @@ from models.settings import Settings
 from services.db.pg_database import get_db
 from validators.settings_requests import SetSetting
 
+from services.s3 import upload
 router = APIRouter(prefix="/settings")
 
 

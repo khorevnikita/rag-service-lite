@@ -3,6 +3,8 @@ from typing import Any, Iterable, List, Literal, Optional, Tuple
 
 from validators.question_requests import FunctionDefinition
 
+from models.question import AnswerFormat
+
 
 class UsageData:
     def __init__(self, input_tokens: int, output_tokens: int, model_name: str):
@@ -84,9 +86,9 @@ class IGenerator(ABC):
 
     @abstractmethod
     def create_message_stream(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
+            self,
+            system_context: str,
+            messages: List[AIMessage],
     ) -> Iterable[Tuple[str, UsageData]]:
         """Задает вопрос к LLM и получает ответ в виде стрима.
 
@@ -95,11 +97,12 @@ class IGenerator(ABC):
 
     @abstractmethod
     async def create_message(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
-        tools: Optional[List[FunctionDefinition]],
-    ) -> Tuple[str, List[dict[str, str]], UsageData]:
+            self,
+            system_context: str,
+            messages: List[AIMessage],
+            tools: Optional[List[FunctionDefinition]],
+            answer_format: AnswerFormat,
+    ) -> Tuple[str, Optional[str], List[dict[str, str]], UsageData]:
         """Задает вопрос к LLM и получает ответ в виде конечного результата.
 
         :return:

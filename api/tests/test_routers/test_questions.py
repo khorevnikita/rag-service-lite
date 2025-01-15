@@ -2,12 +2,11 @@ import pytest
 import requests
 
 # Define global headers with x-api-key
-API_KEY = "b10094088c44d70cec75ab289ca8ad7dfef8ce38a10b6844ebb55765ca751fb5"
+API_KEY = "8df7c3a5a2c6ead085fa26b63c7d6ff41cd118e20790440e7395efddc8ce6af0"
 HEADERS = {"x-api-key": API_KEY}
 
 BASE_URL = "http://localhost:8000"  # Change to your API's base URL
 
-ACCOUNT_ID = 19
 EXISTING_QUESTION_ID = 546
 
 
@@ -40,6 +39,47 @@ def test_get_questions(params, expected_status):
 def test_create_question(payload, expected_status):
     response = requests.post(f"{BASE_URL}/api/questions", json=payload, headers=HEADERS)
     assert response.status_code == expected_status
+
+
+@pytest.mark.parametrize(
+    "payload,expected_status_code,expected_audio_file",
+    [
+        (
+                {"text": "What is FastAPI? Give a short answer", "type": "text", "answer_type": "text", "stream": False,
+                 "answer_format": "text"},
+                200,
+                False
+        ),
+        (
+                {"text": "What is FastAPI? Give a short answer", "type": "text", "answer_type": "text", "stream": False,
+                 "answer_format": "audio"},
+                200,
+                True
+        ),
+        # More scenarios, such as invalid response_format
+        (
+                {"text": "What is FastAPI? Give a short answer", "type": "text", "answer_type": "text", "stream": False,
+                 "answer_format": "unsupported"},
+                422,  # Or whatever you expect for invalid format
+                None
+        ),
+    ],
+)
+def test_response_format(payload, expected_status_code, expected_audio_file):
+    response = requests.post(f"{BASE_URL}/api/questions", json=payload, headers=HEADERS)
+    assert response.status_code == expected_status_code
+
+    if response.status_code == 200:
+        data = response.json()
+        question = data["question"]
+
+        assert len(question["answer"]) > 0
+
+        if expected_audio_file is not None:
+            if expected_audio_file:
+                assert len(question["audio_file"]) > 0
+            else:
+                assert not question["audio_file"]
 
 
 # Test GET /api/questions/{item_id}

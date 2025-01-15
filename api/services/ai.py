@@ -4,6 +4,7 @@ from services.ai_clients.interfaces import AIMessage, IEmbedder, IGenerator, Usa
 from services.ai_clients.openai_service import OpenAIClient
 from validators.question_requests import FunctionDefinition
 
+from models.question import AnswerFormat
 
 class AIService:
     generators: dict[str, type[IGenerator]] = {
@@ -43,23 +44,24 @@ class AIService:
         return await self.client.speech_to_text(urls)
 
     def create_message_stream(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
+            self,
+            system_context: str,
+            messages: List[AIMessage],
     ) -> Iterable[Tuple[str, UsageData]]:
         if not self.client:
             raise ValueError("AI Client is not initialized")
         return self.client.create_message_stream(system_context, messages)
 
     async def create_message(
-        self,
-        system_context: str,
-        messages: List[AIMessage],
-        tools: Optional[List[FunctionDefinition]],
-    ) -> Tuple[str, List[dict[str, str]], UsageData]:
+            self,
+            system_context: str,
+            messages: List[AIMessage],
+            tools: Optional[List[FunctionDefinition]],
+            answer_format: AnswerFormat,
+    ) -> Tuple[str, Optional[str], List[dict[str, str]], UsageData]:
         if not self.client:
             raise ValueError("AI Client is not initialized")
-        return await self.client.create_message(system_context, messages, tools)
+        return await self.client.create_message(system_context, messages, tools, answer_format)
 
     async def extract_meta_from_text(self, text: str) -> Tuple[str, UsageData]:
         if not self.client:

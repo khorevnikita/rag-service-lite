@@ -16,11 +16,11 @@ from validators.question_requests import FunctionDefinition
 
 class AnswerHandler:
     def __init__(
-        self,
-        ai_client: AIService,
-        db: AsyncSession,
-        question: Question,
-        tools: Optional[List[FunctionDefinition]],
+            self,
+            ai_client: AIService,
+            db: AsyncSession,
+            question: Question,
+            tools: Optional[List[FunctionDefinition]],
     ):
         self.ai_client = ai_client
         self.db = db
@@ -28,7 +28,7 @@ class AnswerHandler:
         self.tools = tools
 
     async def generate_streaming_response(
-        self, context: str, messages: List[AIMessage]
+            self, context: str, messages: List[AIMessage]
     ) -> StreamingResponse:
         """Генерирует ответ в режиме стрима."""
         background_tasks = BackgroundTasks()
@@ -68,22 +68,23 @@ class AnswerHandler:
         )
 
     async def generate_sync_answer(
-        self, context: str, messages: List[AIMessage]
+            self, context: str, messages: List[AIMessage]
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """
         Генерирует синхронный ответ.
         """
-        answer, tools_called, usage = await self.ai_client.create_message(
-            context, messages, self.tools
+        answer, audio_file, tools_called, usage = await self.ai_client.create_message(
+            context, messages, self.tools, self.question.answer_format
         )
 
-        await self.save_answer(usage.model_name, str(answer), tools_called)
+        await self.save_answer(usage.model_name, str(answer), audio_file, tools_called)
         await self.log_usage(usage)
 
         return answer, tools_called
 
     async def save_answer(
-        self, model_name: str, answer: str, called_tools: Optional[List[Dict[str, Any]]] = None
+            self, model_name: str, answer: str, audio_file: Optional[str] = None,
+            called_tools: Optional[List[Dict[str, Any]]] = None
     ):
         # Находим данные о модели
         query = select(Model).where(Model.base_model_name == model_name)
@@ -95,6 +96,7 @@ class AnswerHandler:
         self.question = await self.db.merge(self.question)
         self.question.model_id = model.id
         self.question.answer = answer
+        self.question.audio_file = audio_file
         self.question.answered_at = datetime.now()
         self.question.called_tools = called_tools
         await self.db.commit()
